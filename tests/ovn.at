@@ -7496,3 +7496,117 @@ done
 OVN_CLEANUP([hv1],[hv2])
 
 AT_CLEANUP
+
+AT_SETUP([ovn -- 1 LR with HA distributed router gateway port])
+AT_SKIP_IF([test $HAVE_PYTHON = no])
+ovn_start
+
+net_add n1
+
+# create gateways with external network connectivity
+
+for i in 1 2; do
+    sim_add gw$i
+    as gw$i
+    ovs-vsctl add-br br-phys
+    ovn_attach n1 br-phys 192.168.0.$i
+    ovs-vsctl set open . external-ids:ovn-bridge-mappings=phys:br-phys
+done
+
+ovn-nbctl ls-add inside
+ovn-nbctl ls-add outside
+
+# create hypervisors with a vif port each to an internal network
+
+for i in 1 2; do
+    sim_add hv$i
+    as hv$i
+    ovs-vsctl add-br br-phys
+    ovn_attach n1 br-phys 192.168.0.1$i
+    ovs-vsctl -- add-port br-int hv$i-vif1 -- \
+        set interface hv$i-vif1 external-ids:iface-id=inside$i \
+        options:tx_pcap=hv$i/vif1-tx.pcap \
+        options:rxq_pcap=hv$i/vif1-rx.pcap \
+        ofport-request=1
+
+        ovn-nbctl lsp-add inside inside$i \
+            -- lsp-set-addresses inside$i "f0:00:00:01:22:$i 192.168.1.10$i"
+
+done
+
+ovn_populate_arp
+
+ovn-nbctl create Logical_Router name=R1
+
+# Connect inside to R1
+ovn-nbctl lrp-add R1 inside 00:00:01:01:02:03 192.168.1.1/24
+ovn-nbctl lsp-add inside rp-inside -- set Logical_Switch_Port rp-inside \
+    type=router options:router-port=inside \
+    -- lsp-set-addresses rp-inside router
+
+# Connect outside to R1 as distributed router gateway port on gw1+gw2
+ovn-nbctl lrp-add R1 outside 00:00:02:01:02:04 192.168.0.101/24 \
+    -- set Logical_Router_Port outside options:redirect-chassis="gw1:10,gw2:1"
+
+ovn-nbctl lsp-add outside rp-outside -- set Logical_Switch_Port rp-outside \
+    type=router options:router-port=outside \
+    -- lsp-set-addresses rp-outside router
+
+# Create localnet port in outside
+ovn-nbctl lsp-add outside ln-outside
+ovn-nbctl lsp-set-addresses ln-outside unknown
+ovn-nbctl lsp-set-type ln-outside localnet
+ovn-nbctl lsp-set-options ln-outside network_name=phys
+
+# Allow some time for ovn-northd and ovn-controller to catch up.
+# XXX This should be more systematic.
+sleep 2
+
+echo "---------NB dump-----"
+ovn-nbctl show
+echo "---------------------"
+ovn-nbctl list logical_router
+echo "---------------------"
+ovn-nbctl list logical_router_port
+echo "---------------------"
+
+echo "---------SB dump-----"
+ovn-sbctl list datapath_binding
+echo "---------------------"
+ovn-sbctl list port_binding
+echo "---------------------"
+ovn-sbctl dump-flows
+echo "---------------------"
+ovn-sbctl list chassis
+ovn-sbctl list encap
+echo "---------------------"
+
+
+hv1_gw1_ofport=$(as hv1 ovs-vsctl --bare --columns ofport find Interface name=ovn-gw1-0)
+hv1_gw2_ofport=$(as hv1 ovs-vsctl --bare --columns ofport find Interface name=ovn-gw2-0)
+hv2_gw1_ofport=$(as hv2 ovs-vsctl --bare --columns ofport find Interface name=ovn-gw1-0)
+hv2_gw2_ofport=$(as hv2 ovs-vsctl --bare --columns ofport find Interface name=ovn-gw2-0)
+
+AT_CHECK([as hv1 ovs-ofctl dump-flows br-int table=32 | grep active_backup | grep slaves:$hv1_gw1_ofport,$hv1_gw2_ofport | wc -l], [0], [1
+])
+
+AT_CHECK([as hv2 ovs-ofctl dump-flows br-int table=32 | grep active_backup | grep slaves:$hv2_gw1_ofport,$hv2_gw2_ofport | wc -l], [0], [1
+])
+
+
+ovn-nbctl set Logical_Router_Port outside options:redirect-chassis="gw1:1,gw2:10"
+
+# XXX: Let the change propagate down to the ovn-controllers
+sleep 2
+
+AT_CHECK([as hv1 ovs-ofctl dump-flows br-int table=32 | grep active_backup | grep slaves:$hv1_gw2_ofport,$hv1_gw1_ofport | wc -l], [0], [1
+])
+
+AT_CHECK([as hv2 ovs-ofctl dump-flows br-int table=32 | grep active_backup | grep slaves:$hv2_gw2_ofport,$hv2_gw1_ofport | wc -l], [0], [1
+])
+
+
+OVN_CLEANUP([gw1],[gw2],[hv1],[hv2])
+
+AT_CLEANUP
+
