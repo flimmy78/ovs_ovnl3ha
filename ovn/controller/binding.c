@@ -537,7 +537,7 @@ bfd_run(struct controller_ctx *ctx, const struct ovsrec_bridge *br_int,
                     chassis_name = smap_get(&pb->options, "redirect-chassis");
                     redirectchassis = true;
                 }
-                if(chassis_name && !strcmp(chassis_name, chassis_rec->name) &&
+                if(chassis_name && strcmp(chassis_name, chassis_rec->name) &&
                    !sset_contains(&bfd_chassis, chassis_name)) { 
                     sset_add(&bfd_chassis, chassis_name);
                 }
