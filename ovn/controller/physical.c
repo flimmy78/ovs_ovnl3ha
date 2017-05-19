@@ -67,6 +67,7 @@ struct chassis_tunnel {
     const char *chassis_id;
     ofp_port_t ofport;
     enum chassis_tunnel_type type;
+    bool bfd_status;
 };
 
 static struct chassis_tunnel *
@@ -392,6 +393,24 @@ consider_port_binding(enum mf_field_id mff_ovn_geneve,
                          binding->logical_port,
                          distributed_port);
         } else {
+            struct redirect_chassis *rc;
+            struct chassis_tunnel *rc_tun;
+            LIST_FOR_EACH(rc, node, redirect_chassis) {
+                /* We looped through all high priority chassis,
+                 * but they are not alive. So assume our chassis as master, and
+                 * add chassisredirect->distributed port mapping ovs rule */
+                if(!strcmp(rc->chassis_id, chassis->name)) {
+                    break;
+                }
+                rc_tun = chassis_tunnel_find(rc->chassis_id);
+                /* As other high priority chassis is alive, assume our chassis
+                 * as backup and add ovs drop rule */
+                if(rc_tun && rc_tun->bfd_status) {
+                    ofctrl_add_flow(flow_table, OFTABLE_LOCAL_OUTPUT, 100, 0,
+                        &match, ofpacts_p);
+                    goto out;
+                }
+            }
             put_load(distributed_binding->tunnel_key,
                      MFF_LOG_OUTPORT, 0, 32, ofpacts_p);
 
@@ -825,6 +844,15 @@ physical_run(struct controller_ctx *ctx, enum mf_field_id mff_ovn_geneve,
 
                 simap_put(&new_tunnel_to_ofport, chassis_id, ofport);
                 struct chassis_tunnel *tun = chassis_tunnel_find(chassis_id);
+                bool bfd_status = false;
+                const char *bfd = smap_get(&iface_rec->bfd, "enable");
+                if(bfd && !strcmp(bfd, "true")) {
+                    const char *status = smap_get(&iface_rec->bfd_status, "state");
+                    if(status && !strcmp(status, "up")) {
+                        bfd_status = true;
+                    }
+                }
+
                 if (tun) {
                     /* If the tunnel's ofport has changed, update. */
                     if (tun->ofport != u16_to_ofp(ofport) ||
@@ -833,6 +861,9 @@ physical_run(struct controller_ctx *ctx, enum mf_field_id mff_ovn_geneve,
                         tun->type = tunnel_type;
                         physical_map_changed = true;
                     }
+                    if(tun->bfd_status != bfd_status) {
+                        tun->bfd_status = bfd_status;
+                    }
                 } else {
                     tun = xmalloc(sizeof *tun);
                     hmap_insert(&tunnels, &tun->hmap_node,
@@ -840,6 +871,7 @@ physical_run(struct controller_ctx *ctx, enum mf_field_id mff_ovn_geneve,
                     tun->chassis_id = chassis_id;
                     tun->ofport = u16_to_ofp(ofport);
                     tun->type = tunnel_type;
+                    tun->bfd_status = bfd_status;
                     physical_map_changed = true;
                 }
                 break;
