@@ -1331,8 +1331,10 @@
     simply a way to indicate that although the packet is destined for
     the distributed gateway port, it needs to be redirected to a
     different chassis.  At table 32, packets with this logical egress
-    port are sent to a specific chassis, in the same way that table 32
-    directs packets whose logical egress port is a VIF or a type
+    port are sent to a specific chassis, or to the master chassis from
+    a set of chassis defined in the <code>redirect-chassis</code> option,
+    in the same way that table 32 directs packets whose logical egress
+    port is a VIF or a type
     <code>l3gateway</code> port to different chassis.  Once the packet
     arrives at that chassis, table 33 resets the logical egress port to
     the value representing the distributed gateway port.  For each

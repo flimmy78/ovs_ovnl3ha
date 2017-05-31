@@ -1281,13 +1281,13 @@
         </p>
 
         <p>
-          Even when a <code>redirect-chassis</code> is specified, the
+          Even when <code>redirect-chassis</code> is specified, the
           logical router port still effectively resides on each chassis.
           However, due to the implications of the use of L2 learning in the
           physical network, as well as the need to support advanced features
           such as one-to-many NAT (aka IP masquerading), a subset of the
           logical router processing is handled in a centralized manner on
-          the specified <code>redirect-chassis</code>.
+          the specified set of <code>redirect-chassis</code>.
         </p>
 
         <p>
@@ -1297,10 +1297,18 @@
           column="external_mac" table="NAT"/>s specified in NAT rules are
           automatically programmed in the peer logical switch's
           destination lookup on the chassis where the <ref
-          column="logical_port" table="NAT"/> resides.  In addition, the
-          logical router's MAC address is automatically programmed in the
-          peer logical switch's destination lookup flow on the
-          <code>redirect-chassis</code>.
+              column="logical_port" table="NAT"/> resides and is master.
+          In addition, the logical router's MAC address is automatically
+          programmed in the peer logical switch's destination lookup flow
+          on the <code>redirect-chassis</code>.
+        </p>
+        <p>
+          The following format is accepted:
+          <code><var>chassis1_name</var>[:<var>chassis1_prio</var>]</code>
+          <code>[,<var>chassis2_name</var>[:<var>chassis2_prio</var>]]</code>
+          <code>[...]</code>
+          where priorities are in decimal values, and an higher numbers means
+          higher priority.
         </p>
 
         <p>
@@ -1462,7 +1470,8 @@
         processed in a distributed manner on all chassis.  If this is
         not specified for a NAT rule on a distributed router, then
         this NAT rule will be processed in a centralized manner on
-        the gateway port instance on the <code>redirect-chassis</code>.
+        the gateway port instance on the master
+        <code>redirect-chassis</code>.
       </p>
 
       <p>
@@ -1489,7 +1498,7 @@
         distributed manner on all chassis.  If this is not specified
         for a NAT rule on a distributed router, then this NAT rule
         will be processed in a centralized manner on the gateway
-        port instance on the <code>redirect-chassis</code>.
+        port instance on the master <code>redirect-chassis</code>.
       </p>
     </column>
   </table>
