@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include "lib/sset.h"
 #include "openvswitch/meta-flow.h"
 
 struct controller_ctx;
@@ -30,7 +31,7 @@ struct sbrec_chassis;
 void pinctrl_init(void);
 void pinctrl_run(struct controller_ctx *, const struct lport_index *,
                  const struct ovsrec_bridge *, const struct sbrec_chassis *,
-                 struct hmap *local_datapaths);
+                 struct hmap *local_datapaths, struct sset *active_tunnels);
 void pinctrl_wait(struct controller_ctx *);
 void pinctrl_destroy(void);
 
