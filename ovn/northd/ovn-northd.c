@@ -28,6 +28,7 @@
 #include "openvswitch/hmap.h"
 #include "openvswitch/json.h"
 #include "ovn/lex.h"
+#include "ovn/lib/chassis-index.h"
 #include "ovn/lib/logical-fields.h"
 #include "ovn/lib/ovn-dhcp.h"
 #include "ovn/lib/ovn-nb-idl.h"
@@ -240,71 +241,6 @@ Options:\n\
     daemon_usage();
     vlog_usage();
     stream_usage("database", true, true, false);
-}
-
-struct chassis {
-    struct hmap_node name_node;
-    const struct sbrec_chassis *db;
-};
-
-struct chassis_index {
-    struct hmap by_name;
-};
-
-/* Finds and returns the chassis with the given 'name', or NULL if no such
- * chassis exists. */
-static const struct sbrec_chassis *
-chassis_lookup_by_name(const struct chassis_index *chassis_index,
-                       const char *name)
-{
-    const struct chassis *chassis;
-    HMAP_FOR_EACH_WITH_HASH (chassis, name_node, hash_string(name, 0),
-                             &chassis_index->by_name) {
-        if (!strcmp(chassis->db->name, name)) {
-            return chassis->db;
-        }
-    }
-    return NULL;
-}
-
-static
-void chassis_index_init(struct northd_context *ctx,
-                        struct chassis_index *chassis_index)
-{
-    hmap_init(&chassis_index->by_name);
-
-    const struct sbrec_chassis *chassis;
-    SBREC_CHASSIS_FOR_EACH (chassis, ctx->ovnsb_idl) {
-        if (!chassis->name) {
-            continue;
-        }
-        if (chassis_lookup_by_name(chassis_index, chassis->name)) {
-            VLOG_WARN("duplicate chassis name '%s'",
-                         chassis->name);
-            continue;
-        }
-        struct chassis *c = xmalloc(sizeof *c);
-        hmap_insert(&chassis_index->by_name, &c->name_node,
-                    hash_string(chassis->name, 0));
-        c->db = chassis;
-    }
-}
-
-static void
-chassis_index_destroy(struct chassis_index *chassis_index)
-{
-    if (!chassis_index) {
-        return;
-    }
-
-    /* Destroy all of the "struct chassis"s. */
-    struct chassis *chassis, *next;
-    HMAP_FOR_EACH_SAFE (chassis, next, name_node, &chassis_index->by_name) {
-        hmap_remove(&chassis_index->by_name, &chassis->name_node);
-        free(chassis);
-    }
-
-    hmap_destroy(&chassis_index->by_name);
 }
 
 struct tnlid_node {
@@ -6500,7 +6436,7 @@ main(int argc, char *argv[])
         };
 
         struct chassis_index chassis_index;
-        chassis_index_init(&ctx, &chassis_index);
+        chassis_index_init(&chassis_index, ctx.ovnsb_idl);
 
         ovnnb_db_run(&ctx, &chassis_index, &ovnsb_idl_loop);
         ovnsb_db_run(&ctx, &ovnsb_idl_loop);
