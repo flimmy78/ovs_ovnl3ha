@@ -1706,12 +1706,11 @@ sbpb_gw_chassis_needs_update__(
         if (!lrp->gateway_chassis[n]->chassis_name) {
             continue;
         }
-
         const struct sbrec_chassis *chassis =
             chassis_lookup_by_name(chassis_index,
                                    lrp->gateway_chassis[n]->chassis_name);
 
-        if (chassis) {
+        if(chassis) {
             lrp_gwc_c[lrp_n_gateway_chassis] = chassis;
             lrp_gwc[lrp_n_gateway_chassis] = lrp->gateway_chassis[n];
             lrp_n_gateway_chassis++;
@@ -1845,7 +1844,6 @@ ovn_port_update_sbrec(struct northd_context *ctx,
                     copy_gw_chassis_from_nbrp_to_sbpb__(ctx, op->nbrp,
                                                         chassis_index, op->sb);
                 }
-
             } else if (redirect_chassis) {
                 /* XXX: Keep the "redirect-chassis" option on the Port_Binding
                  * for compatibility purposes until ovn-controller implements
@@ -6377,12 +6375,8 @@ main(int argc, char *argv[])
     ovsdb_idl_add_column(ovnsb_idl_loop.idl,
                          &sbrec_gateway_chassis_col_chassis);
     ovsdb_idl_add_column(ovnsb_idl_loop.idl, &sbrec_gateway_chassis_col_name);
-    ovsdb_idl_add_column(ovnsb_idl_loop.idl,
-                         &sbrec_gateway_chassis_col_priority);
-    ovsdb_idl_add_column(ovnsb_idl_loop.idl,
-                         &sbrec_gateway_chassis_col_external_ids);
-    ovsdb_idl_add_column(ovnsb_idl_loop.idl,
-                         &sbrec_gateway_chassis_col_options);
+    ovsdb_idl_add_column(ovnsb_idl_loop.idl, &sbrec_gateway_chassis_col_priority);
+
     add_column_noalert(ovnsb_idl_loop.idl,
                        &sbrec_port_binding_col_external_ids);
     ovsdb_idl_add_table(ovnsb_idl_loop.idl, &sbrec_table_mac_binding);
