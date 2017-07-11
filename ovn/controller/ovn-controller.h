@@ -66,7 +66,6 @@ struct local_datapath {
     /* True if this datapath contains an l3gateway port located on this
      * hypervisor. */
     bool has_local_l3gateway;
-    bool has_local_chassisredirect;
     const struct ldatapath **peer_dps;
     size_t n_peer_dps;
 };
@@ -89,6 +88,9 @@ enum chassis_tunnel_type {
 };
 
 uint32_t get_tunnel_type(const char *name);
+void
+bfd_run(struct controller_ctx *ctx, const struct ovsrec_bridge *br_int,
+        const struct sbrec_chassis *chassis_rec, struct sset *bfd_chassis);
 
 
 #endif /* ovn/ovn-controller.h */

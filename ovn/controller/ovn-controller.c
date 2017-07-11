@@ -624,6 +624,7 @@ main(int argc, char *argv[])
          * local hypervisor, and localnet ports. */
         struct sset local_lports = SSET_INITIALIZER(&local_lports);
         struct sset active_tunnels = SSET_INITIALIZER(&active_tunnels);
+        struct sset bfd_chassis = SSET_INITIALIZER(&bfd_chassis);
 
         const struct ovsrec_bridge *br_int = get_br_int(&ctx);
         const char *chassis_id = get_chassis_id(ctx.ovs_idl);
@@ -644,7 +645,7 @@ main(int argc, char *argv[])
             encaps_run(&ctx, br_int, chassis_id);
             binding_run(&ctx, br_int, chassis, &ldatapaths, &lports,
                         &chassis_index, &local_datapaths, &local_lports,
-                        &active_tunnels);
+                        &active_tunnels, &bfd_chassis);
         }
         if (br_int && chassis) {
             struct shash addr_sets = SHASH_INITIALIZER(&addr_sets);
@@ -668,8 +669,7 @@ main(int argc, char *argv[])
                               &chassis_index, &local_datapaths, &group_table,
                               &addr_sets, &flow_table, &active_tunnels);
 
-                    bfd_run(&ctx, br_int, chassis, &local_datapaths,
-                            &chassis_index);
+                    bfd_run(&ctx, br_int, chassis, &bfd_chassis);
                     physical_run(&ctx, mff_ovn_geneve,
                                  br_int, chassis, &ct_zones, &lports,
                                  &flow_table, &local_datapaths, &local_lports,
@@ -724,6 +724,7 @@ main(int argc, char *argv[])
 
         sset_destroy(&local_lports);
         sset_destroy(&active_tunnels);
+        sset_destroy(&bfd_chassis);
 
         struct local_datapath *cur_node, *next_node;
         HMAP_FOR_EACH_SAFE (cur_node, next_node, hmap_node, &local_datapaths) {

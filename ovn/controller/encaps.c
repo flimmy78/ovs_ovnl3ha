@@ -252,3 +252,55 @@ encaps_cleanup(struct controller_ctx *ctx, const struct ovsrec_bridge *br_int)
 
     return !any_changes;
 }
+
+static void
+interface_set_bfd_(const struct ovsrec_interface *iface, bool bfd_setting)
+{
+    const char *new_setting = bfd_setting ? "true":"false";
+    const char *current_setting = smap_get(&iface->bfd, "enable");
+    if (current_setting && !strcmp(current_setting, new_setting)) {
+        /* If already set to true we skip setting it again
+         * to avoid flapping to bfd initialization state */
+        return;
+    }
+    const struct smap bfd = SMAP_CONST1(&bfd, "enable", new_setting);
+    ovsrec_interface_verify_bfd(iface);
+    ovsrec_interface_set_bfd(iface, &bfd);
+    VLOG_INFO("%s BFD on interface %s", bfd_setting?"Enabled":"Disabled",
+                                        iface->name);
+}
+
+void
+bfd_run(struct controller_ctx *ctx, const struct ovsrec_bridge *br_int,
+        const struct sbrec_chassis *chassis_rec, struct sset *bfd_chassis)
+{
+    if (!chassis_rec) {
+        return;
+    }
+    /* Identify tunnels ports(connected to remote chassis id) to enable bfd */
+    struct sset tunnels = SSET_INITIALIZER(&tunnels);
+    struct sset bfd_ifaces = SSET_INITIALIZER(&bfd_ifaces);
+    for (size_t k = 0; k < br_int->n_ports; k++) {
+        const char *chassis_id = smap_get(&br_int->ports[k]->external_ids,
+                                          "ovn-chassis-id");
+        if (chassis_id) {
+            char *port_name = br_int->ports[k]->name;
+            sset_add(&tunnels, port_name);
+            if (sset_contains(bfd_chassis, chassis_id)) {
+                sset_add(&bfd_ifaces, port_name);
+            }
+        }
+    }
+
+    /* Enable or disable bfd */
+    const struct ovsrec_interface *iface;
+    OVSREC_INTERFACE_FOR_EACH (iface, ctx->ovs_idl) {
+        if (sset_contains(&tunnels, iface->name)) {
+                interface_set_bfd_(
+                        iface, sset_contains(&bfd_ifaces, iface->name));
+         }
+    }
+
+    sset_destroy(&tunnels);
+    sset_destroy(&bfd_ifaces);
+}
